@@ -15,37 +15,21 @@ function Model(name) {
     this.name = name;
     this.iVertexBuffer = gl.createBuffer();
     this.iNormalBuffer = gl.createBuffer();
-    this.iIndexBuffer = gl.createBuffer(); // New index buffer
     this.count = 0;
 
-    this.createIndices = function(innerStep) {
-        const indices = [];
-        // Assuming a grid of vertices
-        for (let i = 0; i < innerStep; i++) {
-            for (let j = 0; j < innerStep; j++) {
-                const vertexIndex = i * (innerStep + 1) + j;
-                indices.push(vertexIndex, vertexIndex + innerStep + 1, vertexIndex + 1);
-                indices.push(vertexIndex + 1, vertexIndex + innerStep + 1, vertexIndex + innerStep + 2);
-            }
-        }
-        return indices;
-    };
-
     this.BufferData = function(vertices, normal) {
+
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normal), gl.STREAM_DRAW);
 
-        const indices = this.createIndices(75); // Assuming innerStep is defined somewhere
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-
-        this.count = indices.length / 3; // Number of triangles
-    };
+        this.count = vertices.length/3;
+    }
 
     this.Draw = function() {
+
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
@@ -53,14 +37,9 @@ function Model(name) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
         gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribNormal);
-
-        // Draw elements as triangles using indices
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.drawElements(gl.TRIANGLES, this.count * 3, gl.UNSIGNED_SHORT, 0);
-
-        gl.disableVertexAttribArray(shProgram.iAttribVertex);
-        gl.disableVertexAttribArray(shProgram.iAttribNormal);
-    };
+   
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
+    }
 }
 
 
@@ -72,23 +51,18 @@ function ShaderProgram(name, program) {
 
     // Location of the attribute variable in the shader program.
     this.iAttribVertex = -1;
-
-    this.iAttribNormal = -1;
-
-    this.iLightPosition = -1;
-
+    // Location of the uniform specifying a color for the primitive.
+    this.iColor = -1;
     // Location of the uniform matrix representing the combined transformation.
     this.iModelViewProjectionMatrix = -1;
 
-    this.iModelMatrixNormal = -1;
-
-    this.Use = function() {
+    this.Use = function () {
         gl.useProgram(this.prog);
     }
 }
 
 function draw() { 
-    gl.clearColor(0.75, 0.85, 0.8, 1.0);
+    gl.clearColor(0,0,0,1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     /* Set the values of the projection transformation */
@@ -103,24 +77,28 @@ function draw() {
     let matAccum0 = m4.multiply(rotateToPointZero, modelView );
     let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
         
+    /* Multiply the projection matrix times the modelview matrix to give the
+       combined transformation matrix, and send that to the shader program. */
     let modelViewProjection = m4.multiply(projection, matAccum1 );
 
+    let inversion = m4.inverse(modelViewProjection);
+    let transposedModel = m4.transpose(inversion);
+
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
-    
-    /* Draw the six faces of a cube, with different colors. */
-    gl.uniform4fv(shProgram.iColor, [1,5,0,1] );
+    gl.uniformMatrix4fv(shProgram.iModelMatrixNormal, false, transposedModel );
+    gl.uniform3fv(shProgram.iLightPosition, [0.0, 1.0, 0.0]);
 
     surface.Draw();
 }
 
 function processSurfaceEquations(u, v) {
     // constant variables for equations
-    const A = 0.3;
-    const B = 0.3;
-    const C = 0.15;
-    const x = A * deg2rad(u) * Math.sin(deg2rad(u)) * Math.cos(deg2rad(v));
-    const y = B * deg2rad(u) * Math.cos(deg2rad(u)) * Math.cos(deg2rad(v));
-    const z = -C * deg2rad(u) * Math.sin(deg2rad(v));
+    const A = 0.25;
+    const B = 0.25;
+    const C = 0.125;
+    const x = A * u * Math.sin(u) * Math.cos(v);
+    const y = B * u * Math.cos(u) * Math.cos(v);
+    const z = -C * u * Math.sin(v);
     return { x, y, z };
 
 }
@@ -128,32 +106,89 @@ function processSurfaceEquations(u, v) {
 function CreateSurfaceData()
 {
     let vertexList = [];
+    let normalList = [];
+    let step = 0.01;
+    let delta = 0.001;
 
     // 0 <= u <= 2PI, -PI <= v <= PI
-    const innerStep = 5;
-    for (let i = 0; i <= 360; i+=innerStep) {
-        for (let j = -180; j <= 180; j+=innerStep) {
-            const { x, y, z } = processSurfaceEquations(i, j);
-            vertexList.push(x, y, z);
+
+    for (let u = 0; u <= 2 * Math.PI; u += step) {
+        for (let v = -Math.PI; v <= Math.PI; v += step) {
+
+            let v1 = processSurfaceEquations(u, v);
+            let v2 = processSurfaceEquations(u, v + step);
+            let v3 = processSurfaceEquations(u + step, v);
+            let v4 = processSurfaceEquations(u + step, v + step);
+            vertexList.push(v1.x, v1.y, v1.z);
+            vertexList.push(v2.x, v2.y, v2.z);
+            vertexList.push(v3.x, v3.y, v3.z);
+            
+            vertexList.push(v2.x, v2.y, v2.z);
+            vertexList.push(v4.x, v4.y, v4.z);
+            vertexList.push(v3.x, v3.y, v3.z);
+
+            let n1 = CalculateNormal(u, v, delta);
+            let n2 = CalculateNormal(u, v + step, delta);
+            let n3 = CalculateNormal(u + step, v, delta);
+            let n4 = CalculateNormal(u + step, v + step, delta)
+
+            normalList.push(n1.x, n1.y, n1.z);
+            normalList.push(n2.x, n2.y, n2.z);
+            normalList.push(n3.x, n3.y, n3.z);
+            
+            normalList.push(n2.x, n2.y, n2.z);
+            normalList.push(n4.x, n4.y, n4.z);
+            normalList.push(n3.x, n3.y, n3.z);
         }
     }
 
-    for (let i = -180; i <= 180; i+=innerStep) {
-        for (let j = 0; j <= 360; j+=innerStep) {
-            const { x, y, z } = processSurfaceEquations(j, i);
-            vertexList.push(x, y, z);
-        }
-    }
+
+    return { vertices: vertexList, normal: normalList };
+}
+
+function CalculateNormal(u, v, delta) {
+    let currentPoint = processSurfaceEquations(u, v);
+    let pointu = processSurfaceEquations(u + delta, v);
+    let pointv = processSurfaceEquations(u, v + delta);
+
+    let dg_du = {
+        x: (pointu.x - currentPoint.x) / delta,
+        y: (pointu.y - currentPoint.y) / delta,
+        z: (pointu.z - currentPoint.z) / delta
+    };
+
+    let dg_dv = {
+        x: (pointv.x - currentPoint.x) / delta,
+        y: (pointv.y - currentPoint.y) / delta,
+        z: (pointv.z - currentPoint.z) / delta
+    };
+
+    let normal = cross(dg_du, dg_dv);
+
+    normalize(normal);
+
+    return normal;
+}
 
 
-    return vertexList;
+function cross(a, b) {
+    let x = a.y * b.z - b.y * a.z;
+    let y = a.z * b.x - b.z * a.x;
+    let z = a.x * b.y - b.x * a.y;
+    return { x: x, y: y, z: z }
+}
+
+function normalize(a) {
+    var b = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+    a.x /= b;
+    a.y /= b;
+    a.z /= b;
 }
 
 // Function to update the surface with the new max value of parameter r
 function updateSurface() {
-    const maxR = parseFloat(document.getElementById("paramR").value);
-    surface.BufferData(CreateSurfaceData(maxR));
-    document.getElementById("currentMaxR").textContent = maxR.toFixed(2);
+    let data = CreateSurfaceData();
+    surface.BufferData(data.vertices, data.normal);
     draw();
 }
 
@@ -166,15 +201,17 @@ function initGL() {
     shProgram.Use();
 
     shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribNormal              = gl.getAttribLocation(prog, "normal");
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iColor                     = gl.getUniformLocation(prog, "color");
+    shProgram.iModelMatrixNormal         = gl.getUniformLocation(prog, "ModelNormalMatrix");
+    shProgram.iLightPosition             = gl.getUniformLocation(prog, "lightPosition");
 
     surface = new Model('Surface');
-    surface.BufferData(CreateSurfaceData(), 100);
+    let data = CreateSurfaceData();
+    surface.BufferData(data.vertices, data.normal);
 
     gl.enable(gl.DEPTH_TEST);
 }
-
 
 function createProgram(gl, vShader, fShader) {
     let vsh = gl.createShader( gl.VERTEX_SHADER );
@@ -198,11 +235,6 @@ function createProgram(gl, vShader, fShader) {
     }
     return prog;
 }
-
-
-/**
- * initialization function that will be called when the page has loaded
- */
 function init() {
     let canvas;
     try {
@@ -227,6 +259,6 @@ function init() {
     }
 
     spaceball = new TrackballRotator(canvas, draw, 0);
-    
+
     draw();
 }
