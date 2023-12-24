@@ -1,5 +1,4 @@
-# WebGL
+# PA#3 WebGL
 
-Project that accompanies VGGI credit module.
-
-Visit vggi-kpi.blogspot.com for more information
+Developed by Vadym Zolotko
+![PA3](https://github.com/Quarry9221/VGGI/assets/52162840/157ca580-5a14-4824-86d2-2323669ec115)
