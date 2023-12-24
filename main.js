@@ -38,7 +38,7 @@ function Model(name) {
         gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribNormal);
    
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
+        gl.drawArrays(gl.TRIANGLES, 0, this.count);
     }
 }
 
@@ -62,7 +62,7 @@ function ShaderProgram(name, program) {
 }
 
 function draw() { 
-    gl.clearColor(0,0,0,1);
+    gl.clearColor(1,1,1,1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     /* Set the values of the projection transformation */
@@ -79,26 +79,40 @@ function draw() {
         
     /* Multiply the projection matrix times the modelview matrix to give the
        combined transformation matrix, and send that to the shader program. */
-    let modelViewProjection = m4.multiply(projection, matAccum1 );
+       let modelViewProjection = m4.multiply(projection, matAccum1);
 
-    let inversion = m4.inverse(modelViewProjection);
-    let transposedModel = m4.transpose(inversion);
+       let inversion = m4.inverse(modelViewProjection);
+       let transposedModel = m4.transpose(inversion);
 
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
-    gl.uniformMatrix4fv(shProgram.iModelMatrixNormal, false, transposedModel );
-    gl.uniform3fv(shProgram.iLightPosition, [0.0, 1.0, 0.0]);
+       gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
+       gl.uniformMatrix4fv(shProgram.iModelMatrixNormal, false, transposedModel );
+   
+       /* Draw the six faces of a cube, with different colors. */
+       gl.uniform4fv(shProgram.iColor, [1, 1, 0, 1]);
+       let x = document.getElementById('x').value
+       let y = document.getElementById('y').value
+       let z = document.getElementById('z').value
+       gl.uniform3fv(shProgram.iLightPosition, [x, y, z]);
+   
+       gl.uniform3fv(shProgram.iLightDirection, [1, -1, -1]);
+       let f = document.getElementById('f').value
+       let r = document.getElementById('r').value
+       gl.uniform1f(shProgram.iRange, r);
+       gl.uniform1f(shProgram.iFocus, f);
 
     surface.Draw();
 }
-
+function UpdateDraw() {
+    draw()
+    window.requestAnimationFrame(UpdateDraw)
+}
 function processSurfaceEquations(u, v) {
-    // constant variables for equations
     const A = 0.25;
     const B = 0.25;
     const C = 0.125;
-    const x = A * u * Math.sin(u) * Math.cos(v);
-    const y = B * u * Math.cos(u) * Math.cos(v);
-    const z = -C * u * Math.sin(v);
+    const x = A * deg2rad(u) * Math.sin(deg2rad(u)) * Math.cos(deg2rad(v));
+    const y = B * deg2rad(u) * Math.cos(deg2rad(u)) * Math.cos(deg2rad(v));
+    const z = -C * deg2rad(u) * Math.sin(deg2rad(v));
     return { x, y, z };
 
 }
@@ -107,38 +121,31 @@ function CreateSurfaceData()
 {
     let vertexList = [];
     let normalList = [];
-    let step = 0.01;
+    let step = 5;
     let delta = 0.001;
 
-    // 0 <= u <= 2PI, -PI <= v <= PI
+    for (let u = -180; u <= 180; u += step) {
+        for (let v = 0; v <= 360; v += step) {
 
-    for (let u = 0; u <= 2 * Math.PI; u += step) {
-        for (let v = -Math.PI; v <= Math.PI; v += step) {
-
-            let v1 = processSurfaceEquations(u, v);
-            let v2 = processSurfaceEquations(u, v + step);
-            let v3 = processSurfaceEquations(u + step, v);
-            let v4 = processSurfaceEquations(u + step, v + step);
+            let v1 = processSurfaceEquations(v, u);
+            let v2 = processSurfaceEquations(v + step, u);
+            let v3 = processSurfaceEquations(v, u + step);
+            let v4 = processSurfaceEquations(v + step, u + step);
             vertexList.push(v1.x, v1.y, v1.z);
             vertexList.push(v2.x, v2.y, v2.z);
             vertexList.push(v3.x, v3.y, v3.z);
             
+            vertexList.push(v3.x, v3.y, v3.z);
             vertexList.push(v2.x, v2.y, v2.z);
             vertexList.push(v4.x, v4.y, v4.z);
-            vertexList.push(v3.x, v3.y, v3.z);
+
 
             let n1 = CalculateNormal(u, v, delta);
             let n2 = CalculateNormal(u, v + step, delta);
             let n3 = CalculateNormal(u + step, v, delta);
             let n4 = CalculateNormal(u + step, v + step, delta)
 
-            normalList.push(n1.x, n1.y, n1.z);
-            normalList.push(n2.x, n2.y, n2.z);
-            normalList.push(n3.x, n3.y, n3.z);
-            
-            normalList.push(n2.x, n2.y, n2.z);
-            normalList.push(n4.x, n4.y, n4.z);
-            normalList.push(n3.x, n3.y, n3.z);
+            normalList.push(...n1, ...n2, ...n3, ...n3, ...n2, ...n4);
         }
     }
 
@@ -146,52 +153,27 @@ function CreateSurfaceData()
     return { vertices: vertexList, normal: normalList };
 }
 
-function CalculateNormal(u, v, delta) {
+function CalculateNormal(v, u, delta) {
     let currentPoint = processSurfaceEquations(u, v);
     let pointu = processSurfaceEquations(u + delta, v);
     let pointv = processSurfaceEquations(u, v + delta);
 
-    let dg_du = {
-        x: (pointu.x - currentPoint.x) / delta,
-        y: (pointu.y - currentPoint.y) / delta,
-        z: (pointu.z - currentPoint.z) / delta
-    };
+    let dg_du = [
+        currentPoint.x - pointu.x  / delta,
+        currentPoint.y - pointu.y / delta,
+        currentPoint.z - pointu.z  / delta
+    ];
 
-    let dg_dv = {
-        x: (pointv.x - currentPoint.x) / delta,
-        y: (pointv.y - currentPoint.y) / delta,
-        z: (pointv.z - currentPoint.z) / delta
-    };
+    let dg_dv = [
+        currentPoint.x -pointv.x  / delta,
+        currentPoint.y -pointv.y  / delta,
+        currentPoint.z -pointv.z  / delta
+    ];
 
-    let normal = cross(dg_du, dg_dv);
-
-    normalize(normal);
+    let normal = m4.normalize(m4.cross(dg_du, dg_dv))
 
     return normal;
 }
-
-
-function cross(a, b) {
-    let x = a.y * b.z - b.y * a.z;
-    let y = a.z * b.x - b.z * a.x;
-    let z = a.x * b.y - b.x * a.y;
-    return { x: x, y: y, z: z }
-}
-
-function normalize(a) {
-    var b = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-    a.x /= b;
-    a.y /= b;
-    a.z /= b;
-}
-
-// Function to update the surface with the new max value of parameter r
-function updateSurface() {
-    let data = CreateSurfaceData();
-    surface.BufferData(data.vertices, data.normal);
-    draw();
-}
-
 
 /* Initialize the WebGL context. Called from init() */
 function initGL() {
@@ -200,11 +182,15 @@ function initGL() {
     shProgram = new ShaderProgram('Basic', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
-    shProgram.iAttribNormal              = gl.getAttribLocation(prog, "normal");
+    shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribNormal = gl.getAttribLocation(prog, "normal");
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
     shProgram.iModelMatrixNormal         = gl.getUniformLocation(prog, "ModelNormalMatrix");
-    shProgram.iLightPosition             = gl.getUniformLocation(prog, "lightPosition");
+    shProgram.iColor = gl.getUniformLocation(prog, "color");
+    shProgram.iLightPosition = gl.getUniformLocation(prog, "lightPosition");
+    shProgram.iLightDirection = gl.getUniformLocation(prog, "lightDirection");
+    shProgram.iRange = gl.getUniformLocation(prog, "range");
+    shProgram.iFocus = gl.getUniformLocation(prog, "focus");
 
     surface = new Model('Surface');
     let data = CreateSurfaceData();
@@ -260,5 +246,5 @@ function init() {
 
     spaceball = new TrackballRotator(canvas, draw, 0);
 
-    draw();
+    UpdateDraw();
 }
