@@ -15,49 +15,25 @@ uniform vec2 transl;
 uniform float scale;
 
 mat4 translation(vec2 t) {
-    mat4 dst;
+    mat4 arr;
 
-    dst[0][0] = 1.0;
-    dst[0][ 1] = 0.0;
-    dst[0][ 2] = 0.0;
-    dst[0][ 3] = 0.0;
-    dst[1][ 0] = 0.0;
-    dst[1][ 1] = 1.0;
-    dst[1][ 2] = 0.0;
-    dst[1][ 3] = 0.0;
-    dst[2][ 0] = 0.0;
-    dst[2][ 1] = 0.0;
-    dst[2][ 2] = 1.0;
-    dst[2][ 3] = 0.0;
-    dst[3][ 0] = t.x;
-    dst[3][ 1] = t.y;
-    dst[3][ 2] = 0.0;
-    dst[3][ 3] = 1.0;
+    arr[0][0] = 1.0; arr[0][ 1] = 0.0; arr[0][ 2] = 0.0; arr[0][ 3] = 0.0;
+    arr[1][ 0] = 0.0; arr[1][ 1] = 1.0; arr[1][ 2] = 0.0; arr[1][ 3] = 0.0;
+    arr[2][ 0] = 0.0; arr[2][ 1] = 0.0;  arr[2][ 2] = 1.0; arr[2][ 3] = 0.0;
+    arr[3][ 0] = t.x; arr[3][ 1] = t.y; arr[3][ 2] = 0.0; arr[3][ 3] = 1.0;
 
-    return dst;
+    return arr;
 }
 
-mat4 scaling(float s){
-    mat4 dst;
+mat4 scaling(float S){
+    mat4 arr;
 
-    dst[0][0] = s;
-    dst[0][ 1] = 0.0;
-    dst[0][ 2] = 0.0;
-    dst[0][ 3] = 0.0;
-    dst[1][ 0] = 0.0;
-    dst[1][ 1] = s;
-    dst[1][ 2] = 0.0;
-    dst[1][ 3] = 0.0;
-    dst[2][ 0] = 0.0;
-    dst[2][ 1] = 0.0;
-    dst[2][ 2] = s;
-    dst[2][ 3] = 0.0;
-    dst[3][ 0] = 0.0;
-    dst[3][ 1] = 0.0;
-    dst[3][ 2] = 0.0;
-    dst[3][ 3] = 1.0;
+    arr[0][0] = S; arr[0][ 1] = 0.0; arr[0][ 2] = 0.0; arr[0][ 3] = 0.0;
+    arr[1][ 0] = 0.0; arr[1][ 1] = S; arr[1][ 2] = 0.0; arr[1][ 3] = 0.0;
+    arr[2][ 0] = 0.0; arr[2][ 1] = 0.0; arr[2][ 2] = S; arr[2][ 3] = 0.0;
+    arr[3][ 0] = 0.0; arr[3][ 1] = 0.0; arr[3][ 2] = 0.0; arr[3][ 3] = 1.0;
 
-    return dst;
+    return arr;
 }
 
 void main() {
@@ -117,12 +93,9 @@ void main() {
 
     vec3 finalColor = ambient + diffuse + phong;
 
-    gl_FragColor = vec4(finalColor * light+specular,1.0);
-     vec4 texColor = texture2D(tmu,textureV);
+    vec4 texColor = texture2D(tmu,textureV);
     gl_FragColor = texColor*light;
-    if(focus>99.0){
-        gl_FragColor = vec4(4.0,5.,0.,1.0);
-    }
+
     
    
     
