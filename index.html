@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+    <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+
+<title>PA#4</title>
+<style>
+    body {
+        background-color: #EEEEEE;
+    }
+</style>
+
+<script src="./Utils/trackball-rotator.js"></script>
+<script src="./Utils/m4.js"></script>
+<script src="./shader.gpu"></script>
+<script src="./main.js"></script>
+
+</head>
+<body onload="init()">
+
+<h2>9. Snail Surface</h2>
+
+<p id="message">Drag your mouse on the figure to rotate it.<br>
+(On a touch screen, you can use your finger.)</p>
+
+<div>
+    <div style="width: 65%; float:right">
+        <label for="x">x</label>
+        <input type="range" name="x" id="x" min="-1" max="1" step="0.05" value="-1">
+        <label for="y">y</label>
+        <input type="range" name="y" id="y" min="-1" max="1" step="0.05" value="-1">
+        <label for="z">z</label>
+        <input type="range" name="z" id="z" min="-1" max="1" step="0.05" value="1">
+        <label for="r">Range</label>
+        <input type="range" name="r" id="r" min="-5" max="3" step="0.01" value="0.1">
+        <label for="f">Focus</label>
+        <input type="range" name="f" id="f" min="0" max="0.2" step="0.01" value="0.1">
+        <label for="s">Scale</label>
+        <input type="range" name="s" id="s" min="0" max="10" step="0.2" value="1">
+
+    <div id="canvas-holder" style="float: left;">
+    <canvas width="600" height="600" id="webglcanvas"></canvas>
+    </div>
+</div>
+
+
+</body></html>
